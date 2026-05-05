@@ -4,24 +4,19 @@ import { sellers } from '../data/mockData';
 
 const ChatContext = createContext();
 
-// Generate mock initial messages for a conversation
-function generateMockMessages(sellerId, userId) {
+// ==============================
+// Message initial AUTO (client)
+// ==============================
+function generateInitialMessage(sellerId, userId) {
   const seller = sellers.find(s => s.id === sellerId);
   if (!seller) return [];
 
   return [
     {
-      id: 'msg_init_1',
+      id: 'msg_init_' + Date.now(),
       senderId: userId,
-      text: `Bonjour ${seller.name}, je suis intéressé par vos produits. Sont-ils toujours disponibles ?`,
-      timestamp: Date.now() - 3600000,
-      read: true
-    },
-    {
-      id: 'msg_init_2',
-      senderId: sellerId,
-      text: `Bonjour ! Oui, bien sûr. Quelle quantité souhaitez-vous ?`,
-      timestamp: Date.now() - 3500000,
+      text: `Bonjour ${seller.name}, ce produit est-il disponible ?`,
+      timestamp: Date.now(),
       read: true
     }
   ];
@@ -30,30 +25,131 @@ function generateMockMessages(sellerId, userId) {
 export function ChatProvider({ children }) {
   const { user } = useAuth();
 
-  // conversations: { [conversationId]: { sellerId, sellerName, sellerAvatar, messages[], lastMessage, unreadCount } }
   const [conversations, setConversations] = useState(() => {
     const saved = localStorage.getItem('agri_chats');
     return saved && saved !== 'undefined' ? JSON.parse(saved) : {};
   });
 
-  // Track which conversation is currently open
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
-  // Persist conversations
+  // ==============================
+  // Save localStorage
+  // ==============================
   useEffect(() => {
     localStorage.setItem('agri_chats', JSON.stringify(conversations));
   }, [conversations]);
 
-  // Get or create a conversation with a seller
+  // ==============================
+  // Intent detection
+  // ==============================
+  const detectIntent = (text) => {
+    const lower = text.toLowerCase();
+
+    if (lower.match(/\d+/)) return "quantity";
+    if (lower.includes("livraison")) return "delivery";
+    if (lower.includes("retrait")) return "pickup";
+    if (lower.includes("oui")) return "confirm";
+
+    return "default";
+  };
+
+  // ==============================
+  // Réponse scénario (BOT)
+  // ==============================
+  const simulateReply = useCallback((conversationId, userMessage) => {
+    setConversations(prev => {
+      const conv = prev[conversationId];
+      if (!conv) return prev;
+
+      let replyText = "";
+      let nextStep = conv.step;
+      const intent = detectIntent(userMessage);
+
+      switch (conv.step) {
+        case 0:
+          replyText = "Oui, le produit est disponible 👍. Quelle quantité souhaitez-vous ?";
+          nextStep = 1;
+          break;
+
+        case 1:
+          if (intent === "quantity") {
+            replyText = "Parfait 👌. Préférez-vous une livraison 🚚 ou un retrait sur place ?";
+            nextStep = 2;
+          } else {
+            replyText = "Pouvez-vous préciser la quantité souhaitée ?";
+          }
+          break;
+
+        case 2:
+          if (intent === "delivery") {
+            replyText = "Très bien 🚚. Pouvez-vous me donner votre adresse ?";
+            nextStep = 3;
+          } else if (intent === "pickup") {
+            replyText = "D'accord 👍. Quand souhaitez-vous passer récupérer la commande ?";
+            nextStep = 3;
+          } else {
+            replyText = "Vous préférez une livraison ou un retrait ?";
+          }
+          break;
+
+        case 3:
+          replyText = "Parfait 🎉. Voulez-vous confirmer la commande ?";
+          nextStep = 4;
+          break;
+
+        case 4:
+          if (intent === "confirm") {
+            replyText = "Merci beaucoup 🙏. Votre commande est en cours de traitement.";
+            nextStep = 5;
+          } else {
+            replyText = "Merci de confirmer en répondant par 'oui'.";
+          }
+          break;
+
+        default:
+          replyText = "Avez-vous d'autres questions ?";
+      }
+
+      const replyMsg = {
+        id: 'msg_' + Date.now() + '_reply',
+        senderId: conv.sellerId,
+        text: replyText,
+        timestamp: Date.now(),
+        read: conversationId === activeConversationId
+      };
+
+      return {
+        ...prev,
+        [conversationId]: {
+          ...conv,
+          step: nextStep,
+          messages: [...conv.messages, replyMsg],
+          lastMessage: replyText,
+          lastTimestamp: Date.now(),
+          unreadCount: conversationId === activeConversationId
+            ? conv.unreadCount
+            : conv.unreadCount + 1
+        }
+      };
+    });
+  }, [activeConversationId]);
+
+  // ==============================
+  // Ouvrir conversation
+  // ==============================
   const openConversation = useCallback((sellerId, sellerName, sellerAvatar) => {
     if (!user) return null;
 
     const convId = `conv_${user.id}_${sellerId}`;
+    let isNew = false;
 
     setConversations(prev => {
       if (!prev[convId]) {
-        const mockMsgs = generateMockMessages(sellerId, user.id);
+        isNew = true;
+
+        const initialMessage = generateInitialMessage(sellerId, user.id);
+
         return {
           ...prev,
           [convId]: {
@@ -64,10 +160,11 @@ export function ChatProvider({ children }) {
             userId: user.id,
             userName: user.name,
             userAvatar: user.avatar,
-            messages: mockMsgs,
-            lastMessage: mockMsgs.length > 0 ? mockMsgs[mockMsgs.length - 1].text : '',
-            lastTimestamp: mockMsgs.length > 0 ? mockMsgs[mockMsgs.length - 1].timestamp : Date.now(),
-            unreadCount: 0
+            messages: initialMessage,
+            lastMessage: initialMessage[0]?.text,
+            lastTimestamp: Date.now(),
+            unreadCount: 0,
+            step: 0
           }
         };
       }
@@ -77,83 +174,53 @@ export function ChatProvider({ children }) {
     setActiveConversationId(convId);
     setIsChatOpen(true);
 
-    return convId;
-  }, [user]);
+    // 🔥 AUTO réponse vendeur après ouverture
+    setTimeout(() => {
+      simulateReply(convId, "auto");
+    }, 1000);
 
-  // Send a message
+    return convId;
+  }, [user, simulateReply]);
+
+  // ==============================
+  // Envoyer message USER
+  // ==============================
   const sendMessage = useCallback((conversationId, text) => {
     if (!user || !text.trim()) return;
 
     const newMsg = {
-      id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      id: 'msg_' + Date.now(),
       senderId: user.id,
       text: text.trim(),
       timestamp: Date.now(),
-      read: false
+      read: true
     };
 
     setConversations(prev => {
       const conv = prev[conversationId];
       if (!conv) return prev;
 
-      const updatedConv = {
-        ...conv,
-        messages: [...conv.messages, newMsg],
-        lastMessage: text.trim(),
-        lastTimestamp: Date.now()
+      return {
+        ...prev,
+        [conversationId]: {
+          ...conv,
+          messages: [...conv.messages, newMsg],
+          lastMessage: text.trim(),
+          lastTimestamp: Date.now()
+        }
       };
-
-      return { ...prev, [conversationId]: updatedConv };
     });
 
-    // Simulate a seller reply after 1.5 seconds
+    // 🔥 réponse auto du vendeur
     setTimeout(() => {
-      simulateReply(conversationId);
-    }, 1500);
-  }, [user]);
+      simulateReply(conversationId, text);
+    }, 1200);
 
-  // Simulate a seller auto-reply
-  const simulateReply = useCallback((conversationId) => {
-    const replies = [
-      "Merci pour votre message ! Je vérifie la disponibilité et je reviens vers vous.",
-      "Très bien, nous pouvons organiser la livraison. Quelle est votre adresse ?",
-      "Le prix est négociable pour les grandes quantités. Vous souhaitez combien ?",
-      "Oui, c'est toujours disponible. Quand souhaitez-vous passer la commande ?",
-      "Bien reçu ! Je vous envoie les détails par la suite.",
-      "Merci pour votre intérêt. N'hésitez pas si vous avez d'autres questions.",
-      "Je peux vous faire un prix spécial pour cette quantité. Ça vous intéresse ?",
-      "La qualité est garantie. Nous avons des certifications à jour."
-    ];
+  }, [user, simulateReply]);
 
-    const replyText = replies[Math.floor(Math.random() * replies.length)];
-
-    setConversations(prev => {
-      const conv = prev[conversationId];
-      if (!conv) return prev;
-
-      const replyMsg = {
-        id: 'msg_' + Date.now() + '_reply',
-        senderId: conv.sellerId,
-        text: replyText,
-        timestamp: Date.now(),
-        read: conversationId === activeConversationId
-      };
-
-      const updatedConv = {
-        ...conv,
-        messages: [...conv.messages, replyMsg],
-        lastMessage: replyText,
-        lastTimestamp: Date.now(),
-        unreadCount: conversationId === activeConversationId
-          ? conv.unreadCount
-          : conv.unreadCount + 1
-      };
-
-      return { ...prev, [conversationId]: updatedConv };
-    });
-  }, [activeConversationId]);
-
-  // Mark messages as read
+  // ==============================
+  // Lire messages
+  // ==============================
   const markAsRead = useCallback((conversationId) => {
     setConversations(prev => {
       const conv = prev[conversationId];
@@ -170,13 +237,14 @@ export function ChatProvider({ children }) {
     });
   }, []);
 
-  // Total unread count
+  // ==============================
+  // Stats
+  // ==============================
   const totalUnread = Object.values(conversations).reduce(
     (sum, conv) => sum + (conv.unreadCount || 0),
     0
   );
 
-  // Get user's conversations sorted by last timestamp
   const userConversations = Object.values(conversations)
     .filter(conv => conv.userId === user?.id)
     .sort((a, b) => (b.lastTimestamp || 0) - (a.lastTimestamp || 0));
