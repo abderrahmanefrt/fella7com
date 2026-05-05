@@ -1,0 +1,119 @@
+.product-card {
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.product-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+.card-link-wrap {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.product-image {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--color-surface-alt);
+}
+
+.product-price-badge {
+  position: absolute;
+  bottom: var(--space-sm);
+  left: var(--space-sm);
+  background: var(--color-primary);
+  color: white;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.product-price-badge .unit {
+  font-weight: 400;
+  opacity: 0.85;
+  font-size: 0.72rem;
+}
+
+.product-content {
+  padding: var(--space-md);
+}
+
+.product-category-tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-primary);
+  margin-bottom: 4px;
+}
+
+.product-title {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+  margin-bottom: var(--space-sm);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.product-meta {
+  display: flex;
+  gap: var(--space-md);
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.product-seller {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.seller-name { font-weight: 500; }
+
+.verified-icon { color: var(--color-primary); }
+
+.card-action {
+  margin-top: var(--space-md);
+}
+
+.card-action .btn-secondary {
+  display: block;
+  text-align: center;
+  font-size: 0.82rem;
+  padding: 8px;
+}
+
+@media (max-width: 768px) {
+  .product-image { height: 150px; }
+  .product-content { padding: var(--space-sm); }
+  .product-title { font-size: 0.85rem; }
+  .product-meta { gap: var(--space-sm); font-size: 0.72rem; }
+  .card-action { display: none; }
+}

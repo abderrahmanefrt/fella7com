@@ -1,0 +1,10 @@
+/* App-level overrides (mostly empty now — index.css handles base) */
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content {
+  flex: 1;
+}
