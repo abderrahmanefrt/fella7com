@@ -16,11 +16,24 @@
   height: 64px;
 }
 
+/* Logo image styling */
+.brand-logo.big {
+  height: 48px;
+  /* Perfectly sized for the 64px navbar */
+  width: auto;
+  object-fit: contain;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.3s ease;
+}
+
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
   text-decoration: none;
+}
+
+.brand:hover .brand-logo.big {
+  transform: scale(1.08) rotate(-1deg);
+  filter: drop-shadow(0 4px 6px rgba(100, 160, 60, 0.2));
 }
 
 .brand-icon {
@@ -104,7 +117,15 @@
 }
 
 @media (max-width: 768px) {
-  .nav-item { display: none; }
-  .nav-actions .btn-secondary { display: none; }
-  .user-details { display: none; }
+  .nav-item {
+    display: none;
+  }
+
+  .nav-actions .btn-secondary {
+    display: none;
+  }
+
+  .user-details {
+    display: none;
+  }
 }

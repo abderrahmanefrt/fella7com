@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Sprout, Search, LogOut, Crown } from 'lucide-react';
+import { Search, LogOut, Crown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import logo from '../assets/fellahcom.png';
 import './Navbar.css';
 
 export default function Navbar() {
@@ -15,7 +16,7 @@ export default function Navbar() {
     }
     const success = performAction();
     if (!success) {
-      navigate('/premium'); // Redirect to premium page if limit reached
+      navigate('/premium');
     } else {
       alert("Action successful! Item count: " + (user.itemsCount + 1));
     }
@@ -24,14 +25,21 @@ export default function Navbar() {
   return (
     <header className="navbar glass-panel">
       <div className="container nav-content">
-        <Link to="/" className="brand hover-lift">
-          <Sprout className="brand-icon" size={32} />
-          <span className="brand-text">fella7<span className="brand-highlight">com</span></span>
+
+        {/* 🔥 LOGO + BRAND */}
+        <Link to="/" className="brand" aria-label="Fella7Com Home">
+          <img src={logo} alt="Fella7Com Logo" className="brand-logo big" />
         </Link>
 
         <nav className="nav-links">
-          <Link to="/search" className="nav-item"><Search size={20} /> Deals</Link>
-          <Link to="/new" className="nav-item">🌟 New Arrivals</Link>
+          <Link to="/search" className="nav-item">
+            <Search size={20} /> Deals
+          </Link>
+
+          <Link to="/new" className="nav-item">
+            🌟 New Arrivals
+          </Link>
+
           <div className="nav-actions">
             {!user ? (
               <>
@@ -45,15 +53,18 @@ export default function Navbar() {
                   <div className="user-details">
                     <span className="user-name">{user.name}</span>
                     <span className={`user-plan ${user.plan === 'premium' ? 'text-warning' : ''}`}>
-                      {user.plan === 'premium' ? <Crown size={12} /> : ''} {user.plan.toUpperCase()} ({user.itemsCount}/3 limits)
+                      {user.plan === 'premium' ? <Crown size={12} /> : ''}
+                      {user.plan.toUpperCase()} ({user.itemsCount}/3 limits)
                     </span>
                   </div>
                 </Link>
+
                 {user.role !== 'buyer' && (
                   <Link to="/post" className="btn-primary">
                     Post Item
                   </Link>
                 )}
+
                 <button onClick={logout} className="btn-icon hover-lift" title="Logout">
                   <LogOut size={20} color="var(--color-danger)" />
                 </button>
