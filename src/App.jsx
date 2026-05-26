@@ -12,6 +12,7 @@ import CreateListing from './pages/CreateListing';
 import Products from './pages/Products';
 import Profile from './pages/Profile';
 import NewArrivals from './pages/NewArrivals';
+import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
 
 function ScrollToTop() {
@@ -23,11 +24,14 @@ function ScrollToTop() {
 }
 
 function App() {
+  const { pathname } = useLocation();
+  const isAdmin = pathname === '/admin';
+
   return (
     <div className="app-container">
       <ScrollToTop />
-      <Navbar />
-      <main className="main-content">
+      {!isAdmin && <Navbar />}
+      <main className={isAdmin ? '' : 'main-content'}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/listing/:id" element={<ListingDetail />} />
@@ -38,10 +42,11 @@ function App() {
           <Route path="/search" element={<Products />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/new" element={<NewArrivals />} />
+          <Route path="/admin" element={<AdminDashboard />} />
         </Routes>
       </main>
-      <Footer />
-      <ChatWidget />
+      {!isAdmin && <Footer />}
+      {!isAdmin && <ChatWidget />}
     </div>
   );
 }
