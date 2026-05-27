@@ -60,7 +60,7 @@ export default function ListingDetail() {
       navigate('/login');
       return;
     }
-    openConversation(seller.id, seller.name, seller.avatar);
+    openConversation(seller.id, seller.name, seller.avatar, product.id, product.title);
   };
 
   return (

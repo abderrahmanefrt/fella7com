@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, ArrowLeft, ChevronDown } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { MessageCircle, X, Send, ArrowLeft, ChevronDown, CreditCard, Shield, Lock, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
+import { OFFER_STATUS } from '../context/ChatContext';
 import './ChatWidget.css';
 
 function formatTime(timestamp) {
@@ -20,6 +22,10 @@ function formatDate(timestamp) {
   return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
+function formatPrice(num) {
+  return Number(num).toLocaleString('fr-FR');
+}
+
 // Group messages by date
 function groupMessagesByDate(messages) {
   const groups = [];
@@ -30,12 +36,312 @@ function groupMessagesByDate(messages) {
       currentDate = dateStr;
       groups.push({ type: 'date', date: formatDate(msg.timestamp), key: 'date_' + dateStr });
     }
-    groups.push({ type: 'message', ...msg, key: msg.id });
+    groups.push({ type: msg.type || 'message', ...msg, key: msg.id });
   });
   return groups;
 }
 
+// ═══════════════════════════════════════
+// Payment Modal — full-screen payment form
+// ═══════════════════════════════════════
+function PaymentModal({ offer, onPay, onCancel }) {
+  const [form, setForm] = useState({
+    cardNumber: '',
+    cardName: '',
+    expiry: '',
+    cvv: ''
+  });
+  const [step, setStep] = useState('form'); // 'form' | 'processing' | 'success'
+
+  const handleChange = (field, value) => {
+    // Format card number with spaces
+    if (field === 'cardNumber') {
+      value = value.replace(/\D/g, '').slice(0, 16);
+      value = value.replace(/(.{4})/g, '$1 ').trim();
+    }
+    // Format expiry
+    if (field === 'expiry') {
+      value = value.replace(/\D/g, '').slice(0, 4);
+      if (value.length >= 3) {
+        value = value.slice(0, 2) + '/' + value.slice(2);
+      }
+    }
+    // CVV
+    if (field === 'cvv') {
+      value = value.replace(/\D/g, '').slice(0, 3);
+    }
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const isValid = form.cardNumber.replace(/\s/g, '').length === 16 &&
+    form.cardName.trim().length > 2 &&
+    form.expiry.length === 5 &&
+    form.cvv.length === 3;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!isValid) return;
+    setStep('processing');
+    setTimeout(() => {
+      setStep('success');
+      setTimeout(() => {
+        onPay();
+      }, 1800);
+    }, 2000);
+  };
+
+  return createPortal(
+    <div className="payment-overlay" onClick={onCancel}>
+      <div className="payment-modal payment-modal-fullscreen animate-slide-up" onClick={e => e.stopPropagation()}>
+
+        {/* ─── FORM STEP ─── */}
+        {step === 'form' && (
+          <>
+            <div className="payment-header">
+              <div className="payment-header-top">
+                <div className="payment-lock-icon">
+                  <Lock size={22} />
+                </div>
+                <div>
+                  <h4>Paiement sécurisé</h4>
+                  <span className="payment-secure-badge">
+                    <Shield size={14} /> SSL 256-bit
+                  </span>
+                </div>
+                <button className="payment-close" onClick={onCancel}>
+                  <X size={22} />
+                </button>
+              </div>
+
+              {/* Order summary */}
+              <div className="payment-summary">
+                <div className="payment-summary-product">
+                  <span className="payment-product-emoji"></span>
+                  <div className="payment-product-info">
+                    <strong>{offer.product}</strong>
+                    <span>Quantité: {offer.quantity}</span>
+                  </div>
+                </div>
+
+                <div className="payment-summary-divider"></div>
+
+                {offer.unitPrice && (
+                  <div className="payment-summary-row">
+                    <span>Prix unitaire</span>
+                    <span>{formatPrice(offer.unitPrice)} DA {offer.unitLabel || ''}</span>
+                  </div>
+                )}
+                <div className="payment-summary-row">
+                  <span>Sous-total ({offer.quantity})</span>
+                  <span>{formatPrice(offer.price)} DA</span>
+                </div>
+                {Number(offer.delivery) > 0 && (
+                  <div className="payment-summary-row">
+                    <span>🚚 Livraison</span>
+                    <span>{formatPrice(offer.delivery)} DA</span>
+                  </div>
+                )}
+                <div className="payment-summary-total">
+                  <span>Total à payer</span>
+                  <strong>{formatPrice(offer.total)} DA</strong>
+                </div>
+              </div>
+            </div>
+
+            <form className="payment-form" onSubmit={handleSubmit}>
+              <div className="payment-field">
+                <label>Numéro de carte</label>
+                <div className="payment-input-icon">
+                  <CreditCard size={20} className="field-icon" />
+                  <input
+                    type="text"
+                    placeholder="1234 5678 9012 3456"
+                    value={form.cardNumber}
+                    onChange={e => handleChange('cardNumber', e.target.value)}
+                    autoFocus
+                  />
+                  <div className="card-brands">
+                    <span className="card-brand visa">VISA</span>
+                    <span className="card-brand mc">MC</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="payment-field">
+                <label>Nom sur la carte</label>
+                <input
+                  type="text"
+                  placeholder="MOHAMMED SALIM"
+                  value={form.cardName}
+                  onChange={e => handleChange('cardName', e.target.value.toUpperCase())}
+                />
+              </div>
+
+              <div className="payment-field-row">
+                <div className="payment-field">
+                  <label>Expiration</label>
+                  <input
+                    type="text"
+                    placeholder="MM/AA"
+                    value={form.expiry}
+                    onChange={e => handleChange('expiry', e.target.value)}
+                  />
+                </div>
+                <div className="payment-field">
+                  <label>CVV</label>
+                  <input
+                    type="text"
+                    placeholder="123"
+                    value={form.cvv}
+                    onChange={e => handleChange('cvv', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className={`payment-submit-btn ${isValid ? 'valid' : ''}`}
+                disabled={!isValid}
+              >
+                <Lock size={18} />
+                Payer {formatPrice(offer.total)} DA
+              </button>
+
+              <p className="payment-disclaimer">
+                🔒 Vos informations sont protégées par un cryptage de niveau bancaire.
+              </p>
+            </form>
+          </>
+        )}
+
+        {/* ─── PROCESSING STEP ─── */}
+        {step === 'processing' && (
+          <div className="payment-processing">
+            <div className="payment-spinner"></div>
+            <h4>Traitement en cours...</h4>
+            <p>Veuillez patienter, nous vérifions votre paiement.</p>
+          </div>
+        )}
+
+        {/* ─── SUCCESS STEP ─── */}
+        {step === 'success' && (
+          <div className="payment-success">
+            <div className="payment-success-icon">
+              <CheckCircle size={64} />
+            </div>
+            <h4>Paiement réussi ! 🎉</h4>
+            <p>Votre commande a été confirmée.</p>
+            <span className="payment-success-amount">{formatPrice(offer.total)} DA</span>
+          </div>
+        )}
+
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ═══════════════════════════════════════
+// Offer Card — displayed in chat messages
+// ═══════════════════════════════════════
+function OfferCard({ offer, isMe, conversationId }) {
+  const [showPayment, setShowPayment] = useState(false);
+  const { payOffer } = useChat();
+
+  const isPending = offer.status === OFFER_STATUS.PENDING;
+  const isPaid = offer.status === OFFER_STATUS.PAID;
+
+  const statusClass = isPaid ? 'paid' : 'pending';
+
+  const handlePay = () => {
+    payOffer(conversationId, offer.id);
+    setShowPayment(false);
+  };
+
+  return (
+    <>
+      <div className={`offer-card offer-card-${statusClass}`}>
+        <div className="offer-card-header">
+          <div className="offer-card-icon"></div>
+          <div className="offer-card-title">
+            <strong>Récapitulatif de commande</strong>
+            {isPending && <span className="offer-badge pending">💳 En attente de paiement</span>}
+            {isPaid && <span className="offer-badge paid"> Payé</span>}
+          </div>
+        </div>
+
+        <div className="offer-card-details">
+          <div className="offer-detail-row">
+            <span className="offer-label">Produit</span>
+            <span className="offer-value">{offer.product}</span>
+          </div>
+          <div className="offer-detail-row">
+            <span className="offer-label">Quantité</span>
+            <span className="offer-value">{offer.quantity}</span>
+          </div>
+          {offer.unitPrice && (
+            <div className="offer-detail-row">
+              <span className="offer-label">Prix unitaire</span>
+              <span className="offer-value">{formatPrice(offer.unitPrice)} DA {offer.unitLabel || ''}</span>
+            </div>
+          )}
+          <div className="offer-detail-row">
+            <span className="offer-label">Sous-total</span>
+            <span className="offer-value">{formatPrice(offer.price)} DA</span>
+          </div>
+          {Number(offer.delivery) > 0 && (
+            <div className="offer-detail-row">
+              <span className="offer-label"> Livraison</span>
+              <span className="offer-value">{formatPrice(offer.delivery)} DA</span>
+            </div>
+          )}
+        </div>
+
+        <div className="offer-card-total">
+          <span>Total</span>
+          <strong>{formatPrice(offer.total)} DA</strong>
+        </div>
+
+        {/* Payment button — only for the buyer */}
+        {isPending && !isMe && (
+          <button
+            className="offer-pay-btn"
+            onClick={() => setShowPayment(true)}
+          >
+            <CreditCard size={16} />
+            💳 Payer maintenant
+          </button>
+        )}
+
+        {isPending && isMe && (
+          <div className="offer-waiting">
+            <div className="waiting-dots"><span></span><span></span><span></span></div>
+            En attente du paiement...
+          </div>
+        )}
+
+        {isPaid && (
+          <div className="offer-paid-badge">
+            <CheckCircle size={16} />
+            Paiement confirmé
+          </div>
+        )}
+      </div>
+
+      {showPayment && (
+        <PaymentModal
+          offer={offer}
+          onPay={handlePay}
+          onCancel={() => setShowPayment(false)}
+        />
+      )}
+    </>
+  );
+}
+
+// ═══════════════════════════════════════
 // Conversation List View
+// ═══════════════════════════════════════
 function ConversationList({ onSelectConversation }) {
   const { userConversations } = useChat();
 
@@ -82,7 +388,9 @@ function ConversationList({ onSelectConversation }) {
   );
 }
 
+// ═══════════════════════════════════════
 // Message Thread View
+// ═══════════════════════════════════════
 function MessageThread({ conversationId, onBack }) {
   const { user } = useAuth();
   const { conversations, sendMessage, markAsRead } = useChat();
@@ -115,7 +423,6 @@ function MessageThread({ conversationId, onBack }) {
     if (!input.trim()) return;
     sendMessage(conversationId, input);
     setInput('');
-    // Show typing indicator
     setIsTyping(true);
     setTimeout(() => setIsTyping(false), 1800);
   };
@@ -158,6 +465,31 @@ function MessageThread({ conversationId, onBack }) {
               </div>
             );
           }
+
+          // System message
+          if (item.type === 'system') {
+            return (
+              <div key={item.key} className="chat-system-msg">
+                <span>{item.text}</span>
+              </div>
+            );
+          }
+
+          // Offer card
+          if (item.type === 'offer') {
+            const isMe = item.senderId === user?.id;
+            return (
+              <div key={item.key} className={`chat-bubble-wrapper ${isMe ? 'sent' : 'received'}`}>
+                <OfferCard
+                  offer={item.offer}
+                  isMe={isMe}
+                  conversationId={conversationId}
+                />
+              </div>
+            );
+          }
+
+          // Regular message
           const isMe = item.senderId === user?.id;
           return (
             <div key={item.key} className={`chat-bubble-wrapper ${isMe ? 'sent' : 'received'}`}>
@@ -203,13 +535,14 @@ function MessageThread({ conversationId, onBack }) {
   );
 }
 
+// ═══════════════════════════════════════
 // Main Chat Widget (floating)
+// ═══════════════════════════════════════
 export default function ChatWidget() {
   const { user } = useAuth();
   const { isChatOpen, setIsChatOpen, activeConversationId, setActiveConversationId, totalUnread } = useChat();
-  const [view, setView] = useState('list'); // 'list' | 'thread'
+  const [view, setView] = useState('list');
 
-  // When activeConversationId changes externally (from listing page), go to thread
   useEffect(() => {
     if (activeConversationId && isChatOpen) {
       setView('thread');
@@ -241,7 +574,6 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* Floating Button */}
       <button
         className={`chat-fab ${isChatOpen ? 'open' : ''}`}
         onClick={toggleChat}
@@ -254,7 +586,6 @@ export default function ChatWidget() {
         )}
       </button>
 
-      {/* Chat Panel */}
       {isChatOpen && (
         <div className="chat-panel animate-slide-up">
           <div className="chat-panel-header">
